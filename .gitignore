@@ -1,0 +1,5 @@
+# Carpetas de paquetes de npm
+/node_modules/
+
+# Carpetas de logs
+/logs/
