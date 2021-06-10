@@ -2,9 +2,9 @@
 
 REM Datos de acceso al SQL de desarrollo
 SET DATABASE_HOST=172.16.218.2
-SET DATABASE_NAME=WebServiceExample
-SET DATABASE_USER=inconcert
-SET DATABASE_PASSWORD=**************
+SET DATABASE_NAME=BulkImporter
+SET DATABASE_USER=bulk-importer
+SET DATABASE_PASSWORD=1234567890
 SET DATABASE_TIMEOUT=600
 
 REM Armo el connection string
@@ -12,9 +12,6 @@ SET DATABASE_CONNECTION_STRING="Server=%DATABASE_HOST%;Database=%DATABASE_NAME%;
 
 REM Datos del repositorio local
 SET TARGET_DIR=..\..\database
-
-REM Tablas para las que quiero incluir los scripts de data
-SET DATA_TABLES=Currency,Product
 
 REM Limpio los scripts actuales 
 RMDIR %TARGET_DIR%\data /S /Q
@@ -28,8 +25,7 @@ SchemaZen.exe script^
     --connectionString %DATABASE_CONNECTION_STRING%^
     --scriptDir %TARGET_DIR%^
     --overwrite=true^
-    --verbose=true^
-    --dataTables=%DATA_TABLES%
+    --verbose=true
 
 PAUSE
 

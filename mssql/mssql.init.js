@@ -6,11 +6,10 @@ var log4js = require("log4js");
 var MSSQL_CONFIG = require("../config/mssql.config").MSSQL_CONFIG;
 
 // Importo funciones de inicialización para cada entidad
-var CurrencyMSSql = require("./currency.mssql").CurrencyMSSql;
-var ProductMSSql = require("./product.mssql").ProductMSSql;
+var ElementMSSql = require("./element.mssql").ElementMSSql;
 
 // Obtengo logger
-var logger = log4js.getLogger('ServerScripts');
+var logger = log4js.getLogger('BulkImporter');
 
 // Funcion para inicializar conexion
 function MsSqlInit(app) {
@@ -52,8 +51,7 @@ function MsSqlInit(app) {
         app.set('sqlConn', sqlConn);
 
         // Inicializo los servicios de acceso a base de datos
-        CurrencyMSSql(app);
-        ProductMSSql(app);
+        ElementMSSql(app);
     });
 }
 

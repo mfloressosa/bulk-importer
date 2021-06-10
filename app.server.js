@@ -1,37 +1,28 @@
 // Importo librerías
-var http = require('http');
 var express = require('express');
-var bodyParser = require('body-parser');
-var cookieParser = require('cookie-parser');
-var compression = require('compression');
 var path = require('path');
 var fs = require('fs');
 var log4js = require("log4js");
 var moment = require('moment');
+var xlsx = require('xlsx');
 
 // Importo configuraciones
 var LOGGER_CONFIG = require("./config/logger.config").LOGGER_CONFIG;
-var HTTP_BINDING_HOST = require("./config/server.config").HTTP_BINDING_HOST;
-var HTTP_BINDING_PORT = require("./config/server.config").HTTP_BINDING_PORT;
-var REQUEST_SIZE_LIMIT = require("./config/server.config").REQUEST_SIZE_LIMIT;
+var INPUT_FOLDER_PATH = require("./config/app.config").INPUT_FOLDER_PATH;
+var OUTPUT_FOLDER_PATH = require("./config/app.config").OUTPUT_FOLDER_PATH;
 
 // Importo funciones compartidas
+var CreateFolder = require('./shared/file.shared.js').CreateFolder;
 var DummyPromise = require('./shared/promise.shared.js').DummyPromise;
 
 // Importo funcioón de inicialización para conexión a SQL
 var MsSqlInit = require('./mssql/mssql.init.js').MsSqlInit;
 
-// Importo funcioón de inicialización para servicios
-var ServicesInit = require('./services/services.init.js').ServicesInit;
-
 // Obtengo aplicacion de Exress
 var app = express();
 
-// Referencia al server HTTP
-var httpServer;
-
-// Función par inicializar el server
-function InitServer() {
+// Función para lanzar ejecución
+function ExecuteProcess() {
 
     // Obtengo la ruta para la carpeta de logs
     var logsPath = path.resolve(__dirname, 'logs');
@@ -46,104 +37,65 @@ function InitServer() {
     log4js.configure(LOGGER_CONFIG);
 
     // Obtengo logger
-    var logger = log4js.getLogger('ServerScripts');
+    var logger = log4js.getLogger('BulkImporter');
 
     // Anuncio servicio inicializandose
     logger.info('********************************************************');
-    logger.info('* Inicializando servicio                               *');
+    logger.info('* Inicializando proceso de importación                 *');
     logger.info('********************************************************');
 
-    // Inicializo los middleware para manejo de los request
-    app.use(log4js.connectLogger(log4js.getLogger('AccessLog'), { level: 'auto' }));
-    app.use(bodyParser.urlencoded({ extended: false }));
-    app.use(bodyParser.json({ limit: REQUEST_SIZE_LIMIT }));
-    app.use(bodyParser.text({ limit: REQUEST_SIZE_LIMIT }));
-    app.use(bodyParser.raw({ limit: REQUEST_SIZE_LIMIT }));
-    app.use(cookieParser());
-    app.use(compression());
+    // Genero código de ejecucion
+    var executionId = Date.now().toString();
 
-    // Verifico si hubo error de parseo y lo capturo
-    app.use(function(err, req, res, next) {
-        // Error de parseo en el body tipo JSON
-        if (err && err instanceof SyntaxError && err.status >= 400 && err.status < 500 && err.message.indexOf('JSON')) {
-            // Logueo error
-            logger.warn('No se pudo parsear contenido JSON de request ' + req.method + ' para \'' + req.path + '\'');
-            // Devuelvo un not found
-            res.status(400).json({status: false, description: 'Invalid JSON', error: 'Invalid JSON'});
-        // Error por tamaño del request
-        } else if (err && err.type === 'entity.too.large') {
-            // Logueo error
-            logger.warn('El contenido del request ' + req.method + ' para \'' + req.path + '\' supera el tamaño máximo permitido (' + REQUEST_SIZE_LIMIT + ')');
-            // Devuelvo un not found
-            res.status(400).json({status: false, description: 'Request size limit reached (' + REQUEST_SIZE_LIMIT + ')', error: 'Request size limit reached (' + REQUEST_SIZE_LIMIT + ')'});
-        // Error de parseo genérico
-        } else if (err) {
-            // Logueo error
-            logger.warn('No se pudo parsear contenido de request ' + req.method + ' para \'' + req.path + '\'');
-            // Devuelvo un not found
-            res.status(400).json({status: false, description: 'Invalid request', error: 'Invalid request'});
-        }
-    });
-
-    // Para recibir los datos de la solicitud original en caso de estar atras de un proxy
-    app.set('trust proxy', true);
-
-    // Verifico si el dominio llego con www (para no tener que definir los dos dominios)
-    app.use(function(req, res, next) {
-        // Si me llega una solicitud con www, lo redirijo
-        if (req.headers.host && req.headers.host.slice(0, 4) === 'www.') {
-            var newHost = req.headers.host.slice(4);
-            return res.redirect(301, req.protocol + '://' + newHost + req.originalUrl);
-        }
-        // En cualquier otro caso sigo ejecutando
-        next();
-    });
-
-    // Deshabilito el header Etag para evitar cache web en los request (el contenido static lo sigue usando)
-    app.disable('etag');
-
-    // Hago inicialización de servicios para APIs
-    ServicesInit(app);
-
-    // Si la solicitud no cayo en ningun servicio, devuelvo not found
-    app.get('/*', function(req, res, next) {
-        // Devuelvo un not found
-        res.status(404).type('txt').send('Page not found');
-    });
-
-    // Configuraciones de moment para evitar que tire warnings al validar fechas
-    moment.suppressDeprecationWarnings = true;
+    // Valido la existencia de filtros en el comando de consola
+    var fileName = (process.argv && process.argv[2] ? process.argv[2] : null);
 
     // Inicio cadena de promesas
-    return DummyPromise().then(
+    return DummyPromise()
+    .then(
         result => {
             // Inicializo conexion a base de datos SQL Server
             return MsSqlInit(app);
         }
     ).then(
         result => {
-            // Inicializo servicio HTTP
-            return new Promise((resolve, reject) => {
+            // Creo la carpeta de input si no existe
+            return CreateFolder(INPUT_FOLDER_PATH);
+        }
+    ).then(
+        resultXlsx => {
+            // Creo la carpeta de output si no existe
+            return CreateFolder(OUTPUT_FOLDER_PATH);
+        }
+    ).then(
+        resultXlsx => {
+            // Obtengo la ruta al archivo a importar
+            var inputFilePath = path.resolve(INPUT_FOLDER_PATH, fileName);
 
-                // Escribo a log
-                logger.info('Iniciando servicio HTTP');
-                // Logueo a consola
-                console.log('Iniciando servicio HTTP');
+            // Escribo a log
+            logger.info('Se procesará el archivo \'' + inputFilePath + '\'');
 
-                // Creo y obtengo el servidor HTTP
-                httpServer = http.createServer(app);
+            // Leo el contenido del archivo
+            return xlsx.readFile(inputFilePath, { type: 'string', raw: true });
+        }
+    ).then(
+        resultXlsx => {
+            // Busco el nombre de la primera hoja del excel
+            var sheetName = (
+                resultXlsx && resultXlsx.SheetNames && resultXlsx.SheetNames.length ? resultXlsx.SheetNames[0] :
+                resultXlsx && resultXlsx.Workbook && resultXlsx.Workbook.Sheets && resultXlsx.Workbook.Sheets.length ? (resultXlsx.Workbook.Sheets[0]).name :
+                ''
+            );
 
-                // Levanto servicio HTTP en el puerto configurado
-                httpServer.listen(HTTP_BINDING_PORT, HTTP_BINDING_HOST)
-                .on('listening', () => {
-                    // Escribo a log
-                    logger.info('Servicio HTTP escuchando en ' + httpServer.address().address + ':' + HTTP_BINDING_PORT.toString());
-                    // Logueo a consola
-                    console.log('Servicio HTTP escuchando en ' + httpServer.address().address + ':' + HTTP_BINDING_PORT.toString());
-                    // Resuelvo promesa
-                    resolve(true);
-                });
-            });
+            // Busco la definición del sheet correspondiente al nombre obtenido
+            var sheet = resultXlsx && resultXlsx.Sheets ? resultXlsx.Sheets[sheetName] : null;
+
+            // Obtengo el contenido del archivo y lo convierto a array de json (ya me parsea el header)
+            var fileContent = (sheet ? xlsx.utils.sheet_to_json(sheet, { defval: '' }) : null) || [];
+
+            // Si no se obtuvo ninguna fila lanzo error
+            if (!fileContent || !fileContent.length) throw 'ERROR_UPLOAD_FILE_CONTENT_NO_ROWS';
+
         }
     ).then(
         result => {
@@ -151,6 +103,11 @@ function InitServer() {
             logger.info('Servicio inicializado correctamente');
             // Logueo a consola
             console.log('Servicio inicializado correctamente');
+
+            // Finalizo proceso (en timer para que le de tiempo a terminar de escribir logs)
+            setTimeout(function() {
+                process.exit(0);
+            }, 200);
         }
     ).catch(
         err => {
@@ -161,9 +118,14 @@ function InitServer() {
             logger.error('Error al inicializar el servicio: ' + errorMsg);
             // Logueo a consola
             console.error('Error al inicializar el servicio: ' + errorMsg);
+
+            // Finalizo proceso (en timer para que le de tiempo a terminar de escribir logs)
+            setTimeout(function() {
+                process.exit(0);
+            }, 200);
         }
     );
 }
 
-// Llamo a función de inicialización
-InitServer();
+// Llamo a función de ejecución
+ExecuteProcess();
