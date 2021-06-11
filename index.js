@@ -73,17 +73,17 @@ function ExecuteProcess() {
             return MsSqlInit(app);
         }
     ).then(
-        result => {
+        resultMsSqlInit => {
             // Creo la carpeta de input si no existe
             return CreateFolder(INPUT_FOLDER_PATH);
         }
     ).then(
-        resultXlsx => {
+        resultCreateFolder => {
             // Creo la carpeta de output si no existe
             return CreateFolder(OUTPUT_FOLDER_PATH);
         }
     ).then(
-        resultXlsx => {
+        CreateFolder => {
             // El nombre del archivo se recibe del argumento de ejecución
             importFileName = (process.argv && process.argv[2] ? process.argv[2] : null);
 

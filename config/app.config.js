@@ -11,5 +11,10 @@ exports.ELEMENT_MAPPING = [
         column: 'telefono',
         property: 'Phone',
         required: true,
+    },
+    {
+        column: 'nombre',
+        property: 'Name',
+        required: true,
     }
 ];

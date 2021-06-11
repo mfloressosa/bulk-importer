@@ -110,6 +110,7 @@ var BulkImportElements = function(importElements) {
     // Agrego las columnas a recibir
     tempImportElements.columns.add('ImportId', sql.VarChar(50), { nullable: true });
     tempImportElements.columns.add('ElementId', sql.VarChar(50), { nullable: true });
+    tempImportElements.columns.add('Name', sql.VarChar(200), { nullable: true });
     tempImportElements.columns.add('Phone', sql.VarChar(200), { nullable: true });
 
     // Recorro las filas recibidas
@@ -120,6 +121,7 @@ var BulkImportElements = function(importElements) {
         tempImportElements.rows.add(
             row['ImportId'],
             row['ElementId'],
+            row['Name'],
             row['Phone'],
         );
     }

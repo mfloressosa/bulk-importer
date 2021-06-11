@@ -1,6 +1,7 @@
 CREATE TABLE [dbo].[ImportElement] (
    [ImportId] [varchar](50) NOT NULL ,
    [ElementId] [varchar](50) NOT NULL ,
+   [Name] [varchar](200) NULL ,
    [Phone] [varchar](200) NULL ,
    [TimeStamp] [datetime] NULL   
 

@@ -12,12 +12,14 @@ BEGIN
     INSERT INTO [ImportElement] (
         [ImportId],
         [ElementId],
+        [Name],
         [Phone],
         [TimeStamp]
     )
     SELECT
         [ImportId],
         [ElementId],
+        [Name],
         [Phone],
         GETUTCDATE()
     FROM [#TempImportElements] (NOLOCK)
