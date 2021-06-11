@@ -1,6 +1,6 @@
 # web-service-example
 
-Ejemplo de Web Service REST hecho con NodeJS + Express + SQL Server.
+Ejemplo de script para ímportación BULK hecho con NodeJS + SQL Server.
 
 ## Para setupear un ambiente de desarrollo:
 
@@ -13,41 +13,28 @@ Pasos:
 
 1. Clonar el repositorio:
   ```
-  git clone https://github.com/mfloressosa/web-service-example.git
+  git clone https://github.com/mfloressosa/bulk-importer.git
   ```
 
-2. Parado en la carpeta del proyecto `web-service-example` ejecutar para instalar las dependencias:
+2. Parado en la carpeta del proyecto `bulk-importer` ejecutar para instalar las dependencias:
   ```
   npm install
   ```
 
-3. Para iniciar una instancia del servicio por consola, ejecutar (http://[IP_SERVIDOR]:9000/):
+3. Copiar un archivo a la carpeta `file/input/` desde donde se hará la improtación (se soporta archivos csv, xls y xlsx):
+
+4. Ejecutar el script indicando el nombre del archivo a procesar:
   ```
-  node app.server.dev.js
+  node app.server.dev.js [NOMBRE_ARCHIVO]
   ```
 
-4. También se puede iniciar (y hacer debug) dentro de Visual Studio Code (ya está el launch.json configurado para esto).
+5. Luego de terminar el procesamiento, el archivo se copiará a la carpeta `file/output/`.
 
-5. Los logs de ejecución quedan en la carpeta `logs` del proyecto.
-
-6. Para iniciarlo como demonio usando [pm2](http://pm2.keymetrics.io/), se debe instalar primero este servicio:
+6. Los parámetros de configuración del proceso se pueden modificar en:
   ```
-  npm install pm2@latest -g
+  config/app.config.js
   ```
 
-7. Iniciar el backend una vez y configurar los scripts para que inicie al bootear el SO:
-  ```
-  pm2 start app.server.js --name "web-service-example" --instances 5
-  pm2 startup
-  pm2 save
-  ```
+5. También se puede iniciar (y hacer debug) dentro de Visual Studio Code (ya está el launch.json configurado para esto).
 
-8. Comandos utiles:
-  ```
-  pm2 start web-service-example --> Inicia todas las instancias del procesos.
-  pm2 stop web-service-example --> Detiene todas las instancias del procesos.
-  pm2 restart web-service-example --> Reinicia todas las instancias del procesos.
-  pm2 reload web-service-example --> Reinicio controlado de todos los procesos (esperando que no estén en uso).
-  pm2 list --> Lista los procesos configurados y su status actual.
-  pm2 monit --> Monitoreo en tiempo real del CPU y memoria de cada instancia en ejecución.
-  ```
+6. Los logs de ejecución quedan en la carpeta `logs` del proyecto.

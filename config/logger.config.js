@@ -105,7 +105,7 @@ var GetLogLevelAppender = function (level, appender) {
 var GetCategory = function (appender, level, sendToErrorLog) {
     return ({
         appenders: [
-            appender
+            ...(Array.isArray(appender) ? appender : [appender])
         ].concat((sendToErrorLog ? ['ErrorFilter'] : [])),
         level: level,
     });
@@ -123,8 +123,8 @@ exports.LOGGER_CONFIG = {
         'default': GetCategory('BulkImporter', 'DEBUG', true),
         'Console': GetCategory('Console', 'DEBUG', true),
         'Error': GetCategory('Error', 'DEBUG', true),
-        'BulkImporter': GetCategory('BulkImporter', 'DEBUG', true),
+        'BulkImporter': GetCategory(['BulkImporter', 'Console'], 'DEBUG', true),
     },
-    pm2: true,
+    pm2: false,
     disableClustering: true,
 };

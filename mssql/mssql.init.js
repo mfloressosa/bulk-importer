@@ -19,8 +19,6 @@ function MsSqlInit(app) {
 
         // Escribo a log
         logger.info('Iniciando conexión a base de datos \'' + MSSQL_CONFIG.server + '\'');
-        // Logueo a consola
-        console.log('Iniciando conexión a base de datos \'' + MSSQL_CONFIG.server + '\'');
 
         // Creo e inicializo la conexion
         var sqlConn = new sql.Connection(MSSQL_CONFIG, function (err) {
@@ -31,16 +29,12 @@ function MsSqlInit(app) {
 
                 // Escribo a log
                 logger.error('No se pudo establecer conexion a base de datos: ' + errMsg);
-                // Logueo a consola
-                console.error('No se pudo establecer conexion a base de datos: ' + errMsg);
 
                 // Resultado error de la promesa
                 reject(err);
             } else {
                 // Escribo a log
-                logger.info('Conexión a base de datos establecida');
-                // Escribo a consola
-                console.log('Conexión a base de datos establecida');                
+                logger.info('Conexión a base de datos establecida');             
 
                 // Resultado OK de la promesa
                 resolve(true);

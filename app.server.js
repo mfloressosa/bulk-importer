@@ -1,17 +1,20 @@
 // Importo librerías
 var express = require('express');
-var path = require('path');
 var fs = require('fs');
 var log4js = require("log4js");
 var moment = require('moment');
+var path = require('path');
+var uuid = require('uuid');
 var xlsx = require('xlsx');
 
 // Importo configuraciones
 var LOGGER_CONFIG = require("./config/logger.config").LOGGER_CONFIG;
 var INPUT_FOLDER_PATH = require("./config/app.config").INPUT_FOLDER_PATH;
 var OUTPUT_FOLDER_PATH = require("./config/app.config").OUTPUT_FOLDER_PATH;
+var ELEMENT_MAPPING = require("./config/app.config").ELEMENT_MAPPING;
 
 // Importo funciones compartidas
+var ExistInFileSystem = require('./shared/file.shared.js').ExistInFileSystem;
 var CreateFolder = require('./shared/file.shared.js').CreateFolder;
 var DummyPromise = require('./shared/promise.shared.js').DummyPromise;
 
@@ -44,11 +47,9 @@ function ExecuteProcess() {
     logger.info('* Inicializando proceso de importación                 *');
     logger.info('********************************************************');
 
-    // Genero código de ejecucion
-    var executionId = Date.now().toString();
-
-    // Valido la existencia de filtros en el comando de consola
-    var fileName = (process.argv && process.argv[2] ? process.argv[2] : null);
+    // Datos del archivo a procesar
+    var importFileName;
+    var importFilePath;
 
     // Inicio cadena de promesas
     return DummyPromise()
@@ -69,14 +70,28 @@ function ExecuteProcess() {
         }
     ).then(
         resultXlsx => {
-            // Obtengo la ruta al archivo a importar
-            var inputFilePath = path.resolve(INPUT_FOLDER_PATH, fileName);
+            // El nombre del archivo se recibe del argumento de ejecución
+            importFileName = (process.argv && process.argv[2] ? process.argv[2] : null);
+
+            // Verifico que se haya recibido un nombre de archivo
+            if (!importFileName) throw 'No se un nombre de archivo para procesar';
+
+            // Armo la ruta completa al archivo (en la carpeta de input)
+            importFilePath = path.resolve(INPUT_FOLDER_PATH, importFileName);
+
+            // Verifico que el archivo recibido exista
+            return ExistInFileSystem(importFilePath);
+        }
+    ).then(
+        resultExistInFileSystem => {
+            // Si el archivo a procesar no existe no sigo
+            if (!resultExistInFileSystem) throw 'El archivo \'' + importFilePath + '\' no existe';
 
             // Escribo a log
-            logger.info('Se procesará el archivo \'' + inputFilePath + '\'');
+            logger.info('Se procesará el archivo \'' + importFilePath + '\'');
 
             // Leo el contenido del archivo
-            return xlsx.readFile(inputFilePath, { type: 'string', raw: true });
+            return xlsx.readFile(importFilePath, { type: 'string', raw: true });
         }
     ).then(
         resultXlsx => {
@@ -94,15 +109,91 @@ function ExecuteProcess() {
             var fileContent = (sheet ? xlsx.utils.sheet_to_json(sheet, { defval: '' }) : null) || [];
 
             // Si no se obtuvo ninguna fila lanzo error
-            if (!fileContent || !fileContent.length) throw 'ERROR_UPLOAD_FILE_CONTENT_NO_ROWS';
+            if (!fileContent || !fileContent.length) throw 'El archivo a importar está vacío o no contiene elementos válidos';
+
+            // Escribo a log
+            logger.info('Se obtuvieron ' + fileContent.length.toString() + ' filas');
+
+            // Armo los arrays a guardar en las tablas (Element y ElementNameValue)
+            var elements = [];
+            var elementsNameValues = [];
+
+            // Lista de columnas del archivo que son requeridas
+            var requiredColumns = ELEMENT_MAPPING.filter(item => item.required).map(item => item.column);
+
+            // Lista de columnas del archivo que están mapeadas
+            var mappedColumns = ELEMENT_MAPPING.map(item => item.column);
+
+            // Mapeo archivo --> tabla
+            var objMapping = {};
+
+            // Recorro la lista y armo un mapeo como objeto JSON
+            ELEMENT_MAPPING.forEach(item => objMapping[item.column] = item.property);
+
+            // Tomo las columnas de la primera fila (asumo que son todas iguales)
+            var rowColumns = Object.keys(fileContent[0]);
+            
+            // Recorro la lista de filas obtenidas del archivo
+            fileContent.forEach(
+                (row, index) => {
+                    // Verifico que la fila exista y tenga todas las propiedades requeridas
+                    if (!row || requiredColumns.some(
+                        column => !row[column]
+                    )) {
+                        // Escribo a log
+                        logger.warn('La fila número ' + (index + 1).toString() + ' no tiene todas las columnas requeridas, y será ignorada');
+                        // Salteo la fila
+                        return;
+                    }
+
+                    // Genero un ID autogenerado para el elemento
+                    var elementId = uuid.v4();
+
+                    // Creo un nuevo elemento para agregar (con el ID obtenido)
+                    var element = {
+                        'ID': elementId
+                    };
+
+                    // Recorro la lista de propiedades de la fila
+                    rowColumns.forEach(
+                        column => {
+                            // Verifico si la columna está entre las principales
+                            if (mappedColumns.includes(column)) {
+                                // Si es de las principales la agrego al element
+                                element[objMapping[column]] = row[column];
+                            } else {
+                                // Sino, lo agrego como name value
+                                elementsNameValues.push(
+                                    {
+                                        ElementId: elementId,
+                                        Name: column,
+                                        Value: row[column],
+                                    }
+                                );
+                            }
+                        }
+                    );
+
+                    // Agrego el elemento al array
+                    elements.push(element);
+                }
+            );
+
+            // Escribo a log
+            logger.info('Se generaron ' + elements.length.toString() + ' elementos y ' + elementsNameValues.length.toString() + ' name-value asociados');
+
+
+
+
+
 
         }
     ).then(
         result => {
             // Escribo a log
-            logger.info('Servicio inicializado correctamente');
-            // Logueo a consola
-            console.log('Servicio inicializado correctamente');
+            logger.info('********************************************************');
+            logger.info('* Proceso finalizado correctamente                     *');
+            logger.info('********************************************************');
 
             // Finalizo proceso (en timer para que le de tiempo a terminar de escribir logs)
             setTimeout(function() {
@@ -115,9 +206,9 @@ function ExecuteProcess() {
             var errorMsg = (typeof err === 'string' ? err : err.message || err.description || '');
 
             // Escribo a log
-            logger.error('Error al inicializar el servicio: ' + errorMsg);
-            // Logueo a consola
-            console.error('Error al inicializar el servicio: ' + errorMsg);
+            logger.error('********************************************************');
+            logger.error('* Error al procesar importación: ' + errorMsg);
+            logger.error('********************************************************');
 
             // Finalizo proceso (en timer para que le de tiempo a terminar de escribir logs)
             setTimeout(function() {
