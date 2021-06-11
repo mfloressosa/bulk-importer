@@ -1,6 +1,6 @@
 
 // Importo servicios de todas las entidades
-var ElementMSSql = require("./element.mssql");
+var ImportMSSql = require("./import.mssql");
 
 // Armo un objeto para juntar y exportar todos los servicios
 var MSSql = {};
@@ -8,7 +8,7 @@ var MSSql = {};
 // Agrego todos los servicios
 Object.assign(
     MSSql,
-    ElementMSSql,
+    ImportMSSql,
 );
 
 // Exporto el objeto obtenido

@@ -21,6 +21,9 @@ var DummyPromise = require('./shared/promise.shared.js').DummyPromise;
 // Importo funcioón de inicialización para conexión a SQL
 var MsSqlInit = require('./mssql/mssql.init.js').MsSqlInit;
 
+// Importo servicio con funciones para MSSQL
+var MSSql = require("../mssql/mssql.service").MSSql;
+
 // Obtengo aplicacion de Exress
 var app = express();
 
@@ -50,6 +53,12 @@ function ExecuteProcess() {
     // Datos del archivo a procesar
     var importFileName;
     var importFilePath;
+
+    // Genero un ID para la importación
+    var importId = uuid.v4();
+
+    // Obtengo la fecha de ejecución
+    var executionDate = moment().toDate();
 
     // Inicio cadena de promesas
     return DummyPromise()
@@ -114,9 +123,21 @@ function ExecuteProcess() {
             // Escribo a log
             logger.info('Se obtuvieron ' + fileContent.length.toString() + ' filas');
 
+            // Escribo a log
+            logger.info('Se generarán datos para insertar en tablas');
+
+            // Armo el objeto header
+            var importHeader = {
+                'ImportId': importId,
+                'FileName':  importFileName,
+                'ExecutionDate': executionDate,
+                'ExecutionElements': null,
+                'ExecutionNameValues': null,
+            };
+
             // Armo los arrays a guardar en las tablas (Element y ElementNameValue)
-            var elements = [];
-            var elementsNameValues = [];
+            var importElements = [];
+            var importElementsNameValues = [];
 
             // Lista de columnas del archivo que son requeridas
             var requiredColumns = ELEMENT_MAPPING.filter(item => item.required).map(item => item.column);
@@ -151,7 +172,8 @@ function ExecuteProcess() {
 
                     // Creo un nuevo elemento para agregar (con el ID obtenido)
                     var element = {
-                        'ID': elementId
+                        'ImportId': importId,
+                        'ElementId': elementId,
                     };
 
                     // Recorro la lista de propiedades de la fila
@@ -163,11 +185,12 @@ function ExecuteProcess() {
                                 element[objMapping[column]] = row[column];
                             } else {
                                 // Sino, lo agrego como name value
-                                elementsNameValues.push(
+                                importElementsNameValues.push(
                                     {
-                                        ElementId: elementId,
-                                        Name: column,
-                                        Value: row[column],
+                                        'ImportId': importId,
+                                        'ElementId': elementId,
+                                        'Name': column,
+                                        'Value': row[column],
                                     }
                                 );
                             }
@@ -175,21 +198,53 @@ function ExecuteProcess() {
                     );
 
                     // Agrego el elemento al array
-                    elements.push(element);
+                    importElements.push(element);
                 }
             );
 
             // Escribo a log
-            logger.info('Se generaron ' + elements.length.toString() + ' elementos y ' + elementsNameValues.length.toString() + ' name-value asociados');
+            logger.info('Se generaron ' + importElements.length.toString() + ' elementos y ' + importElementsNameValues.length.toString() + ' name-value asociados');
 
+            // Actualizo las cantidades obtenidas
+            importHeader['ExecutionElements'] = importElements.length;
+            importHeader['ExecutionNameValues'] = importElementsNameValues.length;
 
+            // Escribo a log
+            logger.info('Se insertarán datos obtendos en base de datos');
 
-
-
-
+            // Guardo el encabezado en base de datos
+            return MSSql.SaveImportHeader(
+                importHeader.ImportId,
+                importHeader.FileName,
+                importHeader.ExecutionDate,
+                importHeader.ExecutionElements,
+                importHeader.ExecutionNameValues,
+            );
         }
     ).then(
-        result => {
+        resultBulkInsertImport => {
+            // Verifico que el proceso haya sido existoso
+            if (!resultBulkInsertImport) throw 'Ocurrio un error al insertar elementos en la tabla ImportHeader';
+
+            // Inserto los datos obtenidos en la tabla ImportElements
+            return MSSql.BulkImportElements(importElements);
+        }
+    ).then(
+        resultBulkImportElements => {
+            // Verifico que el proceso haya sido existoso
+            if (!resultBulkImportElements) throw 'Ocurrio un error al insertar elementos en la tabla ImportElements';
+
+            // Inserto los datos obtenidos en la tabla ImportNameValue
+            return MSSql.BulkInsertImportNameValue(importElementsNameValues);
+        }
+    ).then(
+        resultBulkInsertImportNameValue => {
+            // Verifico que el proceso haya sido existoso
+            if (!resultBulkInsertImportNameValue) throw 'Ocurrio un error al insertar elementos en la tabla ImportNameValue';
+            
+            // Escribo a log
+            logger.info('Elementos insertados exitosamente en base de datos');
+
             // Escribo a log
             logger.info('********************************************************');
             logger.info('* Proceso finalizado correctamente                     *');

@@ -6,7 +6,7 @@ var log4js = require("log4js");
 var MSSQL_CONFIG = require("../config/mssql.config").MSSQL_CONFIG;
 
 // Importo funciones de inicialización para cada entidad
-var ElementMSSql = require("./element.mssql").ElementMSSql;
+var ImportMSSql = require("./import.mssql").ImportMSSql;
 
 // Obtengo logger
 var logger = log4js.getLogger('BulkImporter');
@@ -45,7 +45,7 @@ function MsSqlInit(app) {
         app.set('sqlConn', sqlConn);
 
         // Inicializo los servicios de acceso a base de datos
-        ElementMSSql(app);
+        ImportMSSql(app);
     });
 }
 
