@@ -22,7 +22,7 @@ var DummyPromise = require('./shared/promise.shared.js').DummyPromise;
 var MsSqlInit = require('./mssql/mssql.init.js').MsSqlInit;
 
 // Importo servicio con funciones para MSSQL
-var MSSql = require("../mssql/mssql.service").MSSql;
+var MSSql = require("./mssql/mssql.service").MSSql;
 
 // Obtengo aplicacion de Exress
 var app = express();
@@ -59,6 +59,11 @@ function ExecuteProcess() {
 
     // Obtengo la fecha de ejecución
     var executionDate = moment().toDate();
+
+    // Variables para datos a insertar en tablas
+    var importHeader;
+    var importElements;
+    var importElementsNameValues;
 
     // Inicio cadena de promesas
     return DummyPromise()
@@ -127,7 +132,7 @@ function ExecuteProcess() {
             logger.info('Se generarán datos para insertar en tablas');
 
             // Armo el objeto header
-            var importHeader = {
+            importHeader = {
                 'ImportId': importId,
                 'FileName':  importFileName,
                 'ExecutionDate': executionDate,
@@ -136,8 +141,8 @@ function ExecuteProcess() {
             };
 
             // Armo los arrays a guardar en las tablas (Element y ElementNameValue)
-            var importElements = [];
-            var importElementsNameValues = [];
+            importElements = [];
+            importElementsNameValues = [];
 
             // Lista de columnas del archivo que son requeridas
             var requiredColumns = ELEMENT_MAPPING.filter(item => item.required).map(item => item.column);
@@ -210,6 +215,19 @@ function ExecuteProcess() {
             importHeader['ExecutionNameValues'] = importElementsNameValues.length;
 
             // Escribo a log
+            logger.info('Se eliminarán datos previos de la importación en base de datos');
+
+            // Borro todos los datos relacionados al ImportId
+            return MSSql.DeleteImport(
+                importHeader.ImportId,
+            );
+        }
+    ).then(
+        resultDeleteImport => {
+            // Verifico que el proceso haya sido existoso
+            if (!resultDeleteImport) throw 'Ocurrió un error al eliminar datos previos de la importación';
+
+            // Escribo a log
             logger.info('Se insertarán datos obtendos en base de datos');
 
             // Guardo el encabezado en base de datos
@@ -222,9 +240,9 @@ function ExecuteProcess() {
             );
         }
     ).then(
-        resultBulkInsertImport => {
+        resultSaveImportHeader => {
             // Verifico que el proceso haya sido existoso
-            if (!resultBulkInsertImport) throw 'Ocurrio un error al insertar elementos en la tabla ImportHeader';
+            if (!resultSaveImportHeader) throw 'Ocurrió un error al insertar elementos en la tabla ImportHeader';
 
             // Inserto los datos obtenidos en la tabla ImportElements
             return MSSql.BulkImportElements(importElements);
@@ -232,15 +250,15 @@ function ExecuteProcess() {
     ).then(
         resultBulkImportElements => {
             // Verifico que el proceso haya sido existoso
-            if (!resultBulkImportElements) throw 'Ocurrio un error al insertar elementos en la tabla ImportElements';
+            if (!resultBulkImportElements) throw 'Ocurrió un error al insertar elementos en la tabla ImportElements';
 
-            // Inserto los datos obtenidos en la tabla ImportNameValue
-            return MSSql.BulkInsertImportNameValue(importElementsNameValues);
+            // Inserto los datos obtenidos en la tabla ImportElementNameValue
+            return MSSql.BulkImportElementNameValues(importElementsNameValues);
         }
     ).then(
-        resultBulkInsertImportNameValue => {
+        resultBulkImportElementNameValues => {
             // Verifico que el proceso haya sido existoso
-            if (!resultBulkInsertImportNameValue) throw 'Ocurrio un error al insertar elementos en la tabla ImportNameValue';
+            if (!resultBulkImportElementNameValues) throw 'Ocurrió un error al insertar elementos en la tabla ImportElementNameValue';
             
             // Escribo a log
             logger.info('Elementos insertados exitosamente en base de datos');

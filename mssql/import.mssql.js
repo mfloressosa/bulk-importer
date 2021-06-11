@@ -18,8 +18,44 @@ exports.ImportMSSql = function(app) {
 // Funciones de acceso a base de datos //
 /////////////////////////////////////////
 
+// Función asociada al SP DeleteImport
+var DeleteImport = function(ImportId) {
+
+    return new sql.Request(sqlConn)
+    .input('ImportId', sql.VarChar(50), ImportId)
+    .execute('DeleteImport')
+    .then(
+        function(sqlResult) {
+
+            // Busco el primer recordset del resultado de la ejecución
+            var recordset = (sqlResult && sqlResult.length > 0 ? sqlResult[0] : null);
+
+            // Obtengo el elemento a devolver dentro del recordset (la primera fila del recordset)
+            var output = (recordset && recordset.length > 0 ? recordset[0] : null);
+
+            // Devuelvo resultado
+            return Promise.resolve(output && output.result === 1);
+        }
+    ).catch(
+        function(err) {
+
+            // Obtengo mensaje formateado para el error
+            var errorMsg = (err && err.procName ? 'Error al ejecutar \'' + err.procName + '\': ' : 'Error al ejecutar consulta: ') + (err ? typeof err === 'string' ? err : err.message || err.description || '' : '');
+
+            // Escribo a log
+            logger.error(errorMsg);
+
+            // Propago el error
+            return Promise.reject(err);
+        }
+    );
+}
+
+// Exporto la función DeleteImport
+exports.DeleteImport = DeleteImport;
+
 // Función asociada al SP SaveImportHeader
-exports.SaveImportHeader = function(ImportId, FileName, ExecutionDate, ExecutionElements, ExecutionNameValues) {
+var SaveImportHeader = function(ImportId, FileName, ExecutionDate, ExecutionElements, ExecutionNameValues) {
 
     // Ejecuto SP usando la conexión y los parametros recibidos
     return new sql.Request(sqlConn)
@@ -30,10 +66,10 @@ exports.SaveImportHeader = function(ImportId, FileName, ExecutionDate, Execution
     .input('ExecutionNameValues', sql.Int, ExecutionNameValues)
     .execute('SaveImportHeader')
     .then(
-        function(recordsets) {
+        function(sqlResult) {
 
             // Busco el primer recordset del resultado de la ejecución
-            var recordset = (recordsets && recordsets.length > 0 ? recordsets[0] : null);
+            var recordset = (sqlResult && sqlResult.length > 0 ? sqlResult[0] : null);
 
             // Obtengo el elemento a devolver dentro del recordset (la primera fila del recordset)
             var output = (recordset && recordset.length > 0 ? recordset[0] : null);
@@ -92,20 +128,20 @@ var BulkImportElements = function(importElements) {
     logger.info('Insertando elementos en tabla temporal para ImportElements');
     
     // Ejecuto transacción de bulk parandole la tabla y la función asociada
-    return TransactionBulk(tempImportElements, BulkProcessImportElements, '#TempImportElements', true);
+    return TransactionBulk(tempImportElements, BulkInsertImportElements, '#TempImportElements', true);
 }
 
 // Exporto la función BulkImportElements
 exports.BulkImportElements = BulkImportElements;
 
 // Función para llamar al SP de procesamiento para ImportElements
-function BulkProcessImportElements(request) {
+function BulkInsertImportElements(request) {
 
     // Ejecuto la función de volcado asociada
-    return request.execute('BulkProcessImportElements').then(
+    return request.execute('BulkInsertImportElements').then(
         sqlResult => {
             // Escribo a log
-            logger.info('BulkProcessImportElements: Ejecución ccorrecta');
+            logger.info('BulkInsertImportElements: Ejecución ccorrecta');
 
             // Devuelvo true
             return Promise.resolve(true);
@@ -113,7 +149,7 @@ function BulkProcessImportElements(request) {
     ).catch(
         err => {
             // Escribo a log
-            logger.error('BulkProcessImportElements: Ejecución con error: ' + err.message);
+            logger.error('BulkInsertImportElements: Ejecución con error: ' + err.message);
 
             // Propago el error
             return Promise.reject(err);
@@ -121,30 +157,30 @@ function BulkProcessImportElements(request) {
     );
 }
 
-// Función asociada al SP BulkImportNameValues
-var BulkImportNameValues = function(importNameValues) {
+// Función asociada al SP BulkImportElementNameValues
+var BulkImportElementNameValues = function(importElementNameValues) {
 
     // Si no hay datos para insertar devuelvo true y no sigo
-    if (!importNameValues || !importNameValues.length) return Promise.resolve(true);
+    if (!importElementNameValues || !importElementNameValues.length) return Promise.resolve(true);
 
     // Creo tabla temporal para volcar todos los datos
-    let tempImportNameValues = new sql.Table('#TempImportNameValues');
+    let tempImportElementNameValues = new sql.Table('#TempImportElementNameValues');
 
     // Flag de create a true
-    tempImportNameValues.create = true;
+    tempImportElementNameValues.create = true;
 
     // Agrego las columnas a recibir
-    tempImportNameValues.columns.add('ImportId', sql.VarChar(50), { nullable: true });
-    tempImportNameValues.columns.add('ElementId', sql.VarChar(50), { nullable: true });
-    tempImportNameValues.columns.add('Name', sql.VarChar(200), { nullable: true });
-    tempImportNameValues.columns.add('Value', sql.VarChar(200), { nullable: true });
+    tempImportElementNameValues.columns.add('ImportId', sql.VarChar(50), { nullable: true });
+    tempImportElementNameValues.columns.add('ElementId', sql.VarChar(50), { nullable: true });
+    tempImportElementNameValues.columns.add('Name', sql.VarChar(200), { nullable: true });
+    tempImportElementNameValues.columns.add('Value', sql.VarChar(200), { nullable: true });
 
     // Recorro las filas recibidas
-    for (let row of importNameValues) {
+    for (let row of importElementNameValues) {
         // Tiene datos
         hasData = true;
         // Agrego los datos de cada fila a la tabla
-        tempImportNameValues.rows.add(
+        tempImportElementNameValues.rows.add(
             row['ImportId'],
             row['ElementId'],
             row['Name'],
@@ -153,23 +189,23 @@ var BulkImportNameValues = function(importNameValues) {
     }
 
     // Escribo a log
-    logger.info('Insertando elementos en tabla temporal para ImportNameValues');
+    logger.info('Insertando elementos en tabla temporal para ImportElementNameValues');
     
     // Ejecuto transacción de bulk parandole la tabla y la función asociada
-    return TransactionBulk(tempImportNameValues, BulkProcessImportNameValues, '#TempImportNameValues', true);
+    return TransactionBulk(tempImportElementNameValues, BulkInsertImportElementNameValues, '#TempImportElementNameValues', true);
 }
 
-// Exporto la función BulkImportNameValues
-exports.BulkImportNameValues = BulkImportNameValues;
+// Exporto la función BulkImportElementNameValues
+exports.BulkImportElementNameValues = BulkImportElementNameValues;
 
-// Función para llamar al SP de procesamiento para ImportNameValues
-function BulkProcessImportNameValues(request) {
+// Función para llamar al SP de procesamiento para ImportElementNameValues
+function BulkInsertImportElementNameValues(request) {
 
     // Ejecuto la función de volcado asociada
-    return request.execute('BulkProcessImportNameValues').then(
+    return request.execute('BulkInsertImportElementNameValues').then(
         sqlResult => {
             // Escribo a log
-            logger.info('BulkProcessImportNameValues: Ejecución ccorrecta');
+            logger.info('BulkInsertImportElementNameValues: Ejecución ccorrecta');
 
             // Devuelvo true
             return Promise.resolve(true);
@@ -177,7 +213,7 @@ function BulkProcessImportNameValues(request) {
     ).catch(
         err => {
             // Escribo a log
-            logger.error('BulkProcessImportNameValues: Ejecución con error: ' + err.message);
+            logger.error('BulkInsertImportElementNameValues: Ejecución con error: ' + err.message);
 
             // Propago el error
             return Promise.reject(err);
