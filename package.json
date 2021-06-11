@@ -1,7 +1,7 @@
 {
-  "name": "web-service-example",
+  "name": "bulk-importer",
   "version": "1.0.0",
-  "description": "inConcert - Web Service Example",
+  "description": "inConcert - Bulk Importer",
   "main": "app.server.js",
   "license": "UNLICENSED",
   "private": true,

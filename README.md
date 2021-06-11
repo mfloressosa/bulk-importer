@@ -1,4 +1,4 @@
-# web-service-example
+# bulk-importer
 
 Ejemplo de script para ímportación BULK hecho con NodeJS + SQL Server.
 
