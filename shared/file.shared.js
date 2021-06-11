@@ -59,3 +59,34 @@ var CreateFolder = function(folderName) {
 
 // Exporto la función CreateFolder
 exports.CreateFolder = CreateFolder;
+
+// Función para mover un archivo de una ruta a otra
+var MoveFile = function(sourceFile, destFile) {
+
+    // Verifico que el archivo a mover exista
+    return ExistInFileSystem(sourceFile)
+    .then(
+        result => {
+            // Si no existe no sigo
+            if (!result) throw 'El archivo \'' + sourceFile + '\' no existe';
+
+            // Armo promesa para devolver
+            return new Promise(function(resolve, reject) {
+                // Muevo el archivo
+                try {
+                    fs.rename(sourceFile, destFile, function(err) {
+                        // Si no hay errores devuelvo true
+                        resolve(err === null || err === undefined);
+                    }
+                    );
+                } catch (e) {
+                    // Algo fallo, lanzo error
+                    reject(e);
+                }
+            });
+        }
+    );
+}
+
+// Exporto la función MoveFile
+exports.MoveFile = MoveFile;

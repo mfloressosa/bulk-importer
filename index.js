@@ -16,6 +16,7 @@ var ELEMENT_MAPPING = require("./config/app.config").ELEMENT_MAPPING;
 // Importo funciones compartidas
 var ExistInFileSystem = require('./shared/file.shared.js').ExistInFileSystem;
 var CreateFolder = require('./shared/file.shared.js').CreateFolder;
+var MoveFile = require('./shared/file.shared.js').MoveFile;
 var DummyPromise = require('./shared/promise.shared.js').DummyPromise;
 
 // Importo funcioón de inicialización para conexión a SQL
@@ -53,6 +54,7 @@ function ExecuteProcess() {
     // Datos del archivo a procesar
     var importFileName;
     var importFilePath;
+    var outputFilePath;
 
     // Genero un ID para la importación
     var importId = uuid.v4();
@@ -83,7 +85,7 @@ function ExecuteProcess() {
             return CreateFolder(OUTPUT_FOLDER_PATH);
         }
     ).then(
-        CreateFolder => {
+        resultCreateFolder => {
             // El nombre del archivo se recibe del argumento de ejecución
             importFileName = (process.argv && process.argv[2] ? process.argv[2] : null);
 
@@ -92,6 +94,7 @@ function ExecuteProcess() {
 
             // Armo la ruta completa al archivo (en la carpeta de input)
             importFilePath = path.resolve(INPUT_FOLDER_PATH, importFileName);
+            outputFilePath = path.resolve(OUTPUT_FOLDER_PATH, importFileName);
 
             // Verifico que el archivo recibido exista
             return ExistInFileSystem(importFilePath);
@@ -262,6 +265,17 @@ function ExecuteProcess() {
             
             // Escribo a log
             logger.info('Elementos insertados exitosamente en base de datos');
+
+            // Escribo a log
+            logger.info('Se moverá el archivo procesado a \'' + outputFilePath + '\'');
+
+            // Creo la carpeta de output si no existe
+            return MoveFile(importFilePath, outputFilePath);
+        }
+    ).then(
+        resultMoveFile => {
+            // Verifico que el proceso haya sido existoso
+            if (!resultMoveFile) throw 'Ocurrió un error al mover el archivo hacia la carpet output';
 
             // Escribo a log
             logger.info('********************************************************');
