@@ -25,7 +25,7 @@ Pasos:
 
 4. Ejecutar el script indicando el nombre del archivo a procesar:
   ```
-  node app.server.dev.js [NOMBRE_ARCHIVO]
+  node index.js [NOMBRE_ARCHIVO]
   ```
 
 5. Luego de terminar el procesamiento, el archivo se copiará a la carpeta `file/output/`.

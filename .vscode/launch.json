@@ -11,7 +11,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\app.server.js",
+            "program": "${workspaceFolder}\\index.js",
             "args": [
                 "test_import_contact.csv"
             ],
